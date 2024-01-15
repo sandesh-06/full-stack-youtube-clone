@@ -2,11 +2,9 @@
 
 
 const asyncHandler = (func)=>{ //this is a function which takes a function as a parameter and executes it
-    async (req, res, next)=>{
+    return async (req, res, next)=>{
         try {
-
-            await func(req, res, next);
-
+             await func(req, res, next);
         } catch (err) {
             res.status(err.code || 500).json({
                 success: false,

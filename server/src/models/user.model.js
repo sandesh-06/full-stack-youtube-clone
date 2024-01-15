@@ -83,7 +83,7 @@ userSchema.methods.generateAccessToken = function(){
 
         //expiry time
         {
-            expiresIn: ACCESS_TOKEN_EXPIRY
+            expiresIn: process.env.ACCESS_TOKEN_EXPIRY
         }
     )
 }
@@ -100,7 +100,7 @@ userSchema.methods.generateRefreshToken = function(){
 
         //expiry time of refresh is usually greater than access
         {
-            expiresIn: REFRESH_TOKEN_EXPIRY
+            expiresIn: process.env.REFRESH_TOKEN_EXPIRY
         }
     )
 }

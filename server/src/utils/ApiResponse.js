@@ -9,3 +9,5 @@ class ApiResponse{
         this.success = statusCode < 400 //when we receive status code from 400 and above, success = false
     }
 }
+
+export {ApiResponse}
