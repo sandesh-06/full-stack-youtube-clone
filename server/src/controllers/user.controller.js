@@ -6,6 +6,7 @@ import { User } from "../models/user.model.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
+import {v2 as cloudinary} from "cloudinary"
 
 //REGISTER USER
 export const registerUser = asyncHandler(async (req, res) => {
@@ -145,7 +146,7 @@ export const logoutUser = asyncHandler(async (req, res) => {
   await User.findByIdAndUpdate(
     userId,
     {
-      $set: { refreshToken: "" },
+      $unset: { refreshToken: 1 },
     },
     { new: true }
   );
@@ -274,12 +275,31 @@ export const updateUserAvatar = asyncHandler(async (req, res) => {
 
   if (!avatarLocalPath) throw new ApiError(400, "Avatar file is missing!");
 
-  //2. UPLOAD THE FILE IN CLOUDINARY
+  //2. DELETE EXISTING FILE IN CLOUDINARY
+  //get the user avatar link
+  const currUser = await User.findById(req.user?._id);
+  //if avatar already exists delete it in cloudinary
+  if (currUser.avatar) {
+    const avatarUrl = cloudinary.url(currUser.avatar);
+
+    // match the image id using regex
+    const match = avatarUrl.match(/\/v\d+\/(.+?)\.\w+$/);
+
+    // if match found, store it in publicId and delete the existing image
+    if (match && match[1]) {
+      const imageId = match[1];
+      await cloudinary.uploader.destroy(imageId);
+    } else {
+      console.error("Failed to extract image ID from the existing avatar URL.");
+    }
+  }
+
+  //3. UPLOAD THE FILE IN CLOUDINARY
   const avatar = await uploadOnCloudinary(avatarLocalPath);
 
   if (!avatar.url) throw new ApiError(400, "Error while uploading the avatar!");
-
-  //3. UPDATE THE AVATAR IN DATABASE
+ 
+  // 4. UPDATE THE AVATAR IN DATABASE
   const user = await User.findByIdAndUpdate(
     req.user?._id,
     {
@@ -288,9 +308,9 @@ export const updateUserAvatar = asyncHandler(async (req, res) => {
       },
     },
     { new: true }
-  ).select("-password");
+  ).select("-password -refreshToken");
 
-  //4. RETURN THE UPDATED DETAILS
+  //5. RETURN THE UPDATED DETAILS
   return res
     .status(200)
     .json(new ApiResponse(200, user, "Avatar updated successfully!"));
@@ -304,13 +324,32 @@ export const updateUserCoverImage = asyncHandler(async (req, res) => {
   if (!coverImageLocalPath)
     throw new ApiError(400, "Cover Image file is missing!");
 
-  //2. UPLOAD THE FILE IN CLOUDINARY
+  //2. DELETE EXISTING FILE IN CLOUDINARY
+  //get the user avatar link
+  const currUser = await User.findById(req.user?._id);
+  if(!currUser) throw new ApiError(404, "User not found while updating cover image")
+  //if cover image already exists delete it in cloudinary
+  if (currUser.coverImage) {
+    const coverImageUrl = cloudinary.url(currUser.coverImage);
+
+    // match the image id using regex
+    const match = coverImageUrl.match(/\/v\d+\/(.+?)\.\w+$/);
+
+    // if match found, store it in publicId and delete the existing image
+    if (match && match[1]) {
+      const imageId = match[1];
+      await cloudinary.uploader.destroy(imageId);
+    } else {
+      console.error("Failed to extract image ID from the existing cover image URL.");
+    }
+  }
+  //3. UPLOAD THE FILE IN CLOUDINARY
   const coverImage = await uploadOnCloudinary(coverImageLocalPath);
 
   if (!coverImage.url)
     throw new ApiError(400, "Error while uploading the cover image!");
 
-  //3. UPDATE THE AVATAR IN DATABASE
+  //4. UPDATE THE AVATAR IN DATABASE
   const user = await User.findByIdAndUpdate(
     req.user?._id,
     {
@@ -319,9 +358,9 @@ export const updateUserCoverImage = asyncHandler(async (req, res) => {
       },
     },
     { new: true }
-  ).select("-password");
+  ).select("-password -refreshToken");
 
-  //4. RETURN THE UPDATED DETAILS
+  //5. RETURN THE UPDATED DETAILS
   return res
     .status(200)
     .json(new ApiResponse(200, user, "Cover Image updated successfully!"));
@@ -413,7 +452,7 @@ export const getWatchHistory = asyncHandler(async (req, res) => {
       $match: {
         // _id: req.user._id; //this is not possible because, this is just a string and in aggregate mongoose won't convert it automatically to object id. Other times it does
 
-        _id: mongoose.Types.ObjectId(req.user._id),
+        _id: new mongoose.Types.ObjectId(req.user._id),
       },
     },
 
